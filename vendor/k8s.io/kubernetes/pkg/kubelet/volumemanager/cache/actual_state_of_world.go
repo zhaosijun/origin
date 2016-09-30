@@ -119,6 +119,8 @@ type ActualStateOfWorld interface {
 	// actual state of the world.
 	GetMountedVolumes() []MountedVolume
 
+	GetVolumeMountedPoints() map[string]VolumeMountedPoint
+
 	// GetMountedVolumesForPod generates and returns a list of volumes that are
 	// successfully attached and mounted for the specified pod based on the
 	// current actual state of the world.
@@ -146,6 +148,12 @@ type ActualStateOfWorld interface {
 // MountedVolume represents a volume that has successfully been mounted to a pod.
 type MountedVolume struct {
 	operationexecutor.MountedVolume
+}
+
+type VolumeMountedPoint struct {
+	MountedPoint string
+	VolumeName   api.UniqueVolumeName
+	Capacity     *Quantity
 }
 
 // AttachedVolume represents a volume that is attached to a node.
@@ -512,6 +520,23 @@ func (asw *actualStateOfWorld) VolumeExists(
 
 	_, volumeExists := asw.attachedVolumes[volumeName]
 	return volumeExists
+}
+
+func (asw *actualStateOfWorld) GetVolumeMountedPoints() map[string]VolumeMountedPoint {
+	asw.RLock()
+	defer asw.RUnlock()
+	volumeMountedPoints := make(map[string]VolumeMountedPoint)
+	for _, volumeObj := range asw.attachedVolumes {
+		for _, podObj := range volumeObj.mountedPods {
+			mountedPoint = podObj.mounter.GetPath()
+			volumeMountedPoints[mountedPoint] = VolumeMountedPoint{
+				MountedPoint: mountedPoint,
+				VolumeName:   attachedVolume.volumeName,
+				Capacity:     volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage]}
+		}
+	}
+
+	return volumeMountedPoints
 }
 
 func (asw *actualStateOfWorld) GetMountedVolumes() []MountedVolume {

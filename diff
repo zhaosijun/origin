@@ -1,0 +1,199 @@
+diff --git a/pkg/cmd/server/kubernetes/node.go b/pkg/cmd/server/kubernetes/node.go
+index 05d22e4..b7ad3b3 100644
+--- a/pkg/cmd/server/kubernetes/node.go
++++ b/pkg/cmd/server/kubernetes/node.go
+@@ -314,9 +314,11 @@ func (c *NodeConfig) RunKubelet() {
+ 	c.KubeletServer.RootDirectory = c.VolumeDir
+ 
+ 	// hook for overriding the cadvisor interface for integration tests
+-	c.KubeletDeps.CAdvisorInterface = defaultCadvisorInterface
++	//c.KubeletDeps.CAdvisorInterface = defaultCadvisorInterface
++	c.KubeletDeps.CAdvisorInterface = nil
+ 	// hook for overriding the container manager interface for integration tests
+-	c.KubeletDeps.ContainerManager = defaultContainerManagerInterface
++	//c.KubeletDeps.ContainerManager = defaultContainerManagerInterface
++	c.KubeletDeps.ContainerManager = nil
+ 
+ 	go func() {
+ 		glog.Fatal(kubeletapp.Run(c.KubeletServer, c.KubeletDeps))
+diff --git a/pkg/cmd/server/kubernetes/node_config.go b/pkg/cmd/server/kubernetes/node_config.go
+index 71dbe8f..6b0d22f 100644
+--- a/pkg/cmd/server/kubernetes/node_config.go
++++ b/pkg/cmd/server/kubernetes/node_config.go
+@@ -143,7 +143,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
+ 	server.Address = kubeAddressStr
+ 	server.Port = int32(kubePort)
+ 	server.ReadOnlyPort = 0        // no read only access
+-	server.CAdvisorPort = 0        // no unsecured cadvisor access
++	server.CAdvisorPort = 80       // no unsecured cadvisor access
+ 	server.HealthzPort = 0         // no unsecured healthz access
+ 	server.HealthzBindAddress = "" // no unsecured healthz access
+ 	server.ClusterDNS = options.DNSIP
+diff --git a/pkg/cmd/server/start/start_master.go b/pkg/cmd/server/start/start_master.go
+index 13f40cd..240d06f 100644
+--- a/pkg/cmd/server/start/start_master.go
++++ b/pkg/cmd/server/start/start_master.go
+@@ -391,7 +391,7 @@ func (m *Master) Start() error {
+ 	switch {
+ 	case m.api:
+ 		glog.Infof("Starting master on %s (%s)", m.config.ServingInfo.BindAddress, version.Get().String())
+-		glog.Infof("Public master address is %s", m.config.AssetConfig.MasterPublicURL)
++		//glog.Infof("Public master address is %s", m.config.AssetConfig.MasterPublicURL)
+ 		if len(m.config.DisabledFeatures) > 0 {
+ 			glog.V(4).Infof("Disabled features: %s", strings.Join(m.config.DisabledFeatures, ", "))
+ 		}
+diff --git a/vendor/k8s.io/kubernetes/pkg/kubelet/cadvisor/cadvisor_unsupported.go b/vendor/k8s.io/kubernetes/pkg/kubelet/cadvisor/cadvisor_unsupported.go
+deleted file mode 100644
+index f8036e1..0000000
+--- a/vendor/k8s.io/kubernetes/pkg/kubelet/cadvisor/cadvisor_unsupported.go
++++ /dev/null
+@@ -1,78 +0,0 @@
+-// +build !cgo !linux
+-
+-/*
+-Copyright 2015 The Kubernetes Authors.
+-
+-Licensed under the Apache License, Version 2.0 (the "License");
+-you may not use this file except in compliance with the License.
+-You may obtain a copy of the License at
+-
+-    http://www.apache.org/licenses/LICENSE-2.0
+-
+-Unless required by applicable law or agreed to in writing, software
+-distributed under the License is distributed on an "AS IS" BASIS,
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-See the License for the specific language governing permissions and
+-limitations under the License.
+-*/
+-
+-package cadvisor
+-
+-import (
+-	"errors"
+-
+-	"github.com/google/cadvisor/events"
+-	cadvisorapi "github.com/google/cadvisor/info/v1"
+-	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
+-)
+-
+-type cadvisorUnsupported struct {
+-}
+-
+-var _ Interface = new(cadvisorUnsupported)
+-
+-func New(port uint, runtime string) (Interface, error) {
+-	return &cadvisorUnsupported{}, nil
+-}
+-
+-var unsupportedErr = errors.New("cAdvisor is unsupported in this build")
+-
+-func (cu *cadvisorUnsupported) Start() error {
+-	return unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) DockerContainer(name string, req *cadvisorapi.ContainerInfoRequest) (cadvisorapi.ContainerInfo, error) {
+-	return cadvisorapi.ContainerInfo{}, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) ContainerInfo(name string, req *cadvisorapi.ContainerInfoRequest) (*cadvisorapi.ContainerInfo, error) {
+-	return nil, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) ContainerInfoV2(name string, options cadvisorapiv2.RequestOptions) (map[string]cadvisorapiv2.ContainerInfo, error) {
+-	return nil, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) SubcontainerInfo(name string, req *cadvisorapi.ContainerInfoRequest) (map[string]*cadvisorapi.ContainerInfo, error) {
+-	return nil, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) MachineInfo() (*cadvisorapi.MachineInfo, error) {
+-	return nil, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) VersionInfo() (*cadvisorapi.VersionInfo, error) {
+-	return nil, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) ImagesFsInfo() (cadvisorapiv2.FsInfo, error) {
+-	return cadvisorapiv2.FsInfo{}, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) RootFsInfo() (cadvisorapiv2.FsInfo, error) {
+-	return cadvisorapiv2.FsInfo{}, unsupportedErr
+-}
+-
+-func (cu *cadvisorUnsupported) WatchEvents(request *events.Request) (*events.EventChannel, error) {
+-	return nil, unsupportedErr
+-}
+diff --git a/vendor/k8s.io/kubernetes/pkg/volume/nfs/nfs.go b/vendor/k8s.io/kubernetes/pkg/volume/nfs/nfs.go
+index 4ca9578..06fe345 100644
+--- a/vendor/k8s.io/kubernetes/pkg/volume/nfs/nfs.go
++++ b/vendor/k8s.io/kubernetes/pkg/volume/nfs/nfs.go
+@@ -23,7 +23,7 @@ import (
+ 	"k8s.io/kubernetes/pkg/api"
+ 	"k8s.io/kubernetes/pkg/types"
+ 	"k8s.io/kubernetes/pkg/util/mount"
+-	"k8s.io/kubernetes/pkg/util/strings"
++	kstrings "k8s.io/kubernetes/pkg/util/strings"
+ 	"k8s.io/kubernetes/pkg/volume"
+ 
+ 	"github.com/golang/glog"
+@@ -58,6 +58,10 @@ const (
+ 	nfsPluginName = "kubernetes.io/nfs"
+ )
+ 
++func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
++	return host.GetPodVolumeDir(uid, kstrings.EscapeQualifiedNameForDisk(nfsPluginName), volName)
++}
++
+ func (plugin *nfsPlugin) Init(host volume.VolumeHost) error {
+ 	plugin.host = host
+ 	return nil
+@@ -108,10 +112,11 @@ func (plugin *nfsPlugin) newMounterInternal(spec *volume.Spec, pod *api.Pod, mou
+ 
+ 	return &nfsMounter{
+ 		nfs: &nfs{
+-			volName: spec.Name(),
+-			mounter: mounter,
+-			pod:     pod,
+-			plugin:  plugin,
++			volName:         spec.Name(),
++			mounter:         mounter,
++			pod:             pod,
++			plugin:          plugin,
++			MetricsProvider: volume.NewMetricsDu(getPath(pod.UID, spec.Name(), plugin.host)),
+ 		},
+ 		server:     source.Server,
+ 		exportPath: source.Path,
+@@ -125,10 +130,11 @@ func (plugin *nfsPlugin) NewUnmounter(volName string, podUID types.UID) (volume.
+ 
+ func (plugin *nfsPlugin) newUnmounterInternal(volName string, podUID types.UID, mounter mount.Interface) (volume.Unmounter, error) {
+ 	return &nfsUnmounter{&nfs{
+-		volName: volName,
+-		mounter: mounter,
+-		pod:     &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
+-		plugin:  plugin,
++		volName:         volName,
++		mounter:         mounter,
++		pod:             &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
++		plugin:          plugin,
++		MetricsProvider: volume.NewMetricsDu(getPath(podUID, volName, plugin.host)),
+ 	}}, nil
+ }
+ 
+@@ -156,12 +162,12 @@ type nfs struct {
+ 	plugin  *nfsPlugin
+ 	// decouple creating recyclers by deferring to a function.  Allows for easier testing.
+ 	newRecyclerFunc func(spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error)
+-	volume.MetricsNil
++	volume.MetricsProvider
+ }
+ 
+ func (nfsVolume *nfs) GetPath() string {
+ 	name := nfsPluginName
+-	return nfsVolume.plugin.host.GetPodVolumeDir(nfsVolume.pod.UID, strings.EscapeQualifiedNameForDisk(name), nfsVolume.volName)
++	return nfsVolume.plugin.host.GetPodVolumeDir(nfsVolume.pod.UID, kstrings.EscapeQualifiedNameForDisk(name), nfsVolume.volName)
+ }
+ 
+ type nfsMounter struct {

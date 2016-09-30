@@ -314,9 +314,11 @@ func (c *NodeConfig) RunKubelet() {
 	c.KubeletServer.RootDirectory = c.VolumeDir
 
 	// hook for overriding the cadvisor interface for integration tests
-	c.KubeletDeps.CAdvisorInterface = defaultCadvisorInterface
+	//c.KubeletDeps.CAdvisorInterface = defaultCadvisorInterface
+	c.KubeletDeps.CAdvisorInterface = nil
 	// hook for overriding the container manager interface for integration tests
-	c.KubeletDeps.ContainerManager = defaultContainerManagerInterface
+	//c.KubeletDeps.ContainerManager = defaultContainerManagerInterface
+	c.KubeletDeps.ContainerManager = nil
 
 	go func() {
 		glog.Fatal(kubeletapp.Run(c.KubeletServer, c.KubeletDeps))

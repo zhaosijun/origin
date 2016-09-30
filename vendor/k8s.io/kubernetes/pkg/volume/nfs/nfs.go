@@ -23,7 +23,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/util/strings"
+	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
 
 	"github.com/golang/glog"
@@ -57,6 +57,10 @@ var _ volume.RecyclableVolumePlugin = &nfsPlugin{}
 const (
 	nfsPluginName = "kubernetes.io/nfs"
 )
+
+func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
+	return host.GetPodVolumeDir(uid, kstrings.EscapeQualifiedNameForDisk(nfsPluginName), volName)
+}
 
 func (plugin *nfsPlugin) Init(host volume.VolumeHost) error {
 	plugin.host = host
@@ -108,10 +112,11 @@ func (plugin *nfsPlugin) newMounterInternal(spec *volume.Spec, pod *api.Pod, mou
 
 	return &nfsMounter{
 		nfs: &nfs{
-			volName: spec.Name(),
-			mounter: mounter,
-			pod:     pod,
-			plugin:  plugin,
+			volName:         spec.Name(),
+			mounter:         mounter,
+			pod:             pod,
+			plugin:          plugin,
+			MetricsProvider: volume.NewMetricsDu(getPath(pod.UID, spec.Name(), plugin.host)),
 		},
 		server:     source.Server,
 		exportPath: source.Path,
@@ -125,10 +130,11 @@ func (plugin *nfsPlugin) NewUnmounter(volName string, podUID types.UID) (volume.
 
 func (plugin *nfsPlugin) newUnmounterInternal(volName string, podUID types.UID, mounter mount.Interface) (volume.Unmounter, error) {
 	return &nfsUnmounter{&nfs{
-		volName: volName,
-		mounter: mounter,
-		pod:     &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
-		plugin:  plugin,
+		volName:         volName,
+		mounter:         mounter,
+		pod:             &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
+		plugin:          plugin,
+		MetricsProvider: volume.NewMetricsDu(getPath(podUID, volName, plugin.host)),
 	}}, nil
 }
 
@@ -156,12 +162,12 @@ type nfs struct {
 	plugin  *nfsPlugin
 	// decouple creating recyclers by deferring to a function.  Allows for easier testing.
 	newRecyclerFunc func(spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error)
-	volume.MetricsNil
+	volume.MetricsProvider
 }
 
 func (nfsVolume *nfs) GetPath() string {
 	name := nfsPluginName
-	return nfsVolume.plugin.host.GetPodVolumeDir(nfsVolume.pod.UID, strings.EscapeQualifiedNameForDisk(name), nfsVolume.volName)
+	return nfsVolume.plugin.host.GetPodVolumeDir(nfsVolume.pod.UID, kstrings.EscapeQualifiedNameForDisk(name), nfsVolume.volName)
 }
 
 type nfsMounter struct {
