@@ -270,9 +270,6 @@ func (vm *volumeManager) GetMountedVolumesMetricsForPod(podName types.UniquePodN
 	podVolumesMetrics := make(map[string]*Metrics)
 	for _, mountedVolumeName := range vm.actualStateOfWorld.GetMountedVolumeNamesForPod(podName) {
 		volumeMetrics := vm.volumesMetricsOfWorld.GetVolumeMetricsData(mountedVolume)
-		if volumeMetrics == nil {
-			volumeMetrics = &Metrics{}
-		}
 		podVolumesMetrics[mountedVolumeName] = volumeMetrics
 	}
 	return podVolumesMetrics
