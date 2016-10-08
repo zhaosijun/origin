@@ -58,7 +58,7 @@ func NewVolumeMetricsOfWorld() VolumesMetricsOfWorld {
 
 type volumeMetricsData struct {
 	metrics           *Metrics
-	isMeasuringStatus bool
+	measuringIsDoing  bool
 	cacheDuration     *time.Duration
 	metricsTimestamp  *time.Time
 }
@@ -68,7 +68,7 @@ type volumesMetricsOfWorld struct {
 	sync.RWMutex
 }
 
-func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error {
+func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, measuringIsDoing bool) error {
 	vmw.RLock()
 	defer vmw.RUnlock()
 
@@ -77,21 +77,21 @@ func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.Uniqu
 		return fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
 	}
 	
-	metricsData.isMeasuringStatus = isMeasuringStatus
+	metricsData.measuringIsDoing = measuringIsDoing
 
 	return nil
 }
 
 func (vmw *volumesMetricsOfWorld) SetVolumeMetricsData(volumeName api.UniqueVolumeName, 
 						   volumeMetrics *Metrics,
-						   isMeasuringStatus bool,
+						   measuringIsDoing bool,
 						   cacheDuration *time.Duration,
 						   dataTimestamp *timeTime) {
 	vmw.RLock()
 	defer vmw.RUnlock()
 	metricsData := &volumeMetricsData{
 		metrics:           volumeMetrics,
-		isMeasuringStatus: isMeasuringStatus
+		measuringIsDoing:  measuringIsDoing
 		cacheDuration:     cacheDuration,     
 		metricsTimeStamp:  dataTimestamp}
 	
@@ -108,7 +108,7 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 		return
 	}
 
-	if metricsData.isMeasuringStatus {
+	if metricsData.measuringIsDoing {
 		glog.V(2).Infof("du is running on volume with name %s", volumeName)
 		return
 	}
@@ -119,17 +119,17 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool) {
 	vmw.RLock()
 	defer vmw.RUnlock()
-	isToMeasure := true
+	measureRequired := true
 	
 	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, isToMeasure, exist
+		return nil, measureRequired, exist
 	}
 	
-	isMetricsExpired := metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now())
-	if metricsData.isMeasuringStatus || !isMetricsExpired {
-		isToMeasure = false
+	metricsIsExpired := metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now())
+	if metricsData.measuringIsDoing || !metricsIsExpired {
+		measureRequired = false
 	}
 	
-	return metricsData.metrics, isToMeasure, exist
+	return metricsData.metrics, measureRequired, exist
 }
