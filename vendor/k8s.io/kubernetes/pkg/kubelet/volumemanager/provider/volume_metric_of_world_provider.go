@@ -118,6 +118,7 @@ func (vmwp *volumesMetricsOfWorldProvider) startMeasureVolume(metricsProvider *V
 }
 
 func (vmwp *volumesMetricsOfWorldProvider) Run(stopCh <-chan struct{}) {
+	init()
 	for {
 		select {
 		case <- stopCh:
