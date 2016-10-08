@@ -516,18 +516,21 @@ func (asw *actualStateOfWorld) VolumeExists(
 	return volumeExists
 }
 
-func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]MetricsProvider {
+func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]*VolumeMetricsProvider {
 	asw.RLock()
 	defer asw.RUnlock()
-	volumeMetricsProvider := make(map[string]MetricsProvider)
+	volumeMetricsProviders := make(map[string]*VolumeMetricsProvider )
 	for _, volumeObj := range asw.attachedVolumes {
 		for _, podObj := range volumeObj.mountedPods {
 			path = podObj.mounter.GetPath()
-			volumeMetricsProvider[path] = NewVolumeMetricsDu(path, attachedVolume.volumeName, volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage])
+			volumeMetricsProviders[path] = NewVolumeMetricsDu(path, 
+									 attachedVolume.volumeName, 
+									 podObj.podName,
+									 volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage])
 		}
 	}
 
-	return volumeMetricsProvider
+	return volumeMetricsProviders
 }
 
 func (asw *actualStateOfWorld) GetMountedVolumes() []MountedVolume {
