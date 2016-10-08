@@ -115,20 +115,20 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 
 	delete(vmw.volumesMountedMetricsCahce, volumeName)
 }
-//GetVolumeMetricsData return the metrics, isMeasuringStatus, status that whether the metrics is expired and error 
-func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error) {
+//GetVolumeMetricsData return the metrics, isMeasuringStatus, whether expired and  whether exist 
+func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, bool) {
 	vmw.RLock()
 	defer vmw.RUnlock()
 	isMetricsExpired := false
 	
 	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, false, isMetricsExpired, fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
+		return nil, false, isMetricsExpired, exist
 	}
 	
 	if metricsData.metricsTimestamp.Add(metricsData.cachePeriod).Before(time.Now()) {
 		isMetricsExpired = true
 	}
 	
-	return metricsData.metrics, metricsData.isMeasuringStatus, isMetricsExpired, nil
+	return metricsData.metrics, metricsData.isMeasuringStatus, isMetricsExpired, exist
 }
