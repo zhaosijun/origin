@@ -46,7 +46,7 @@ type VolumesMetricsOfWorld interface {
 	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
 	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cacheDuration *time.Duration, dataTimestamp *timeTime)
 	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
-	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, bool)
+	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool)
 }
 
 // NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
@@ -115,20 +115,21 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 
 	delete(vmw.volumesMountedMetricsCahce, volumeName)
 }
-//GetVolumeMetricsData return the metrics, isMeasuringStatus, whether expired and  whether exist 
-func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, bool) {
+//GetVolumeMetricsData return the metrics, whether need to measure volume and whether volume metrics exist
+func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool) {
 	vmw.RLock()
 	defer vmw.RUnlock()
-	isMetricsExpired := false
+	isToMeasure := true
 	
 	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, false, isMetricsExpired, exist
+		return nil, isToMeasure, exist
 	}
 	
-	if metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now()) {
-		isMetricsExpired = true
+	isMetricsExpired := metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now())
+	if metricsData.isMeasuringStatus || !isMetricsExpired {
+		isToMeasure = false
 	}
 	
-	return metricsData.metrics, metricsData.isMeasuringStatus, isMetricsExpired, exist
+	return metricsData.metrics, isToMeasure, exist
 }
