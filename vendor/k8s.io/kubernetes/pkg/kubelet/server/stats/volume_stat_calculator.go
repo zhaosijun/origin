@@ -87,20 +87,17 @@ func (s *volumeStatCalculator) GetLatest() (PodVolumeStats, bool) {
 // calcAndStoreStats calculates PodVolumeStats for a given pod and writes the result to the s.latest cache.
 func (s *volumeStatCalculator) calcAndStoreStats() {
 	// Find all Volumes for the Pod
-	volumes, found := s.statsProvider.ListVolumesForPod(s.pod.UID)
+	volumes, found := s.statsProvider.GetVolumesMetricsForPod(s.pod.UID)
 	if !found {
 		return
 	}
 
 	// Call GetMetrics on each Volume and copy the result to a new VolumeStats.FsStats
 	stats := make([]stats.VolumeStats, 0, len(volumes))
-	for name, v := range volumes {
-		metric, err := v.GetMetrics()
-		if err != nil {
-			// Expected for Volumes that don't support Metrics
-			// TODO: Disambiguate unsupported from errors
-			// See issue #20676
-			glog.V(4).Infof("Failed to calculate volume metrics for pod %s volume %s: %+v", format.Pod(s.pod), name, err)
+	for name, metric := range volumes {
+		
+		if metric == nil {
+			//volume metrics has not been provided
 			continue
 		}
 		stats = append(stats, s.parsePodVolumeStats(name, metric))
