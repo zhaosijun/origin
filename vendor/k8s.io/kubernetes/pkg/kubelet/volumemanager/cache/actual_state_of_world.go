@@ -525,7 +525,6 @@ func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]*Vo
 			path = podObj.mounter.GetPath()
 			volumeMetricsProviders[path] = NewVolumeMetricsDu(path, 
 									 attachedVolume.volumeName, 
-									 podObj.podName,
 									 volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage])
 		}
 	}
