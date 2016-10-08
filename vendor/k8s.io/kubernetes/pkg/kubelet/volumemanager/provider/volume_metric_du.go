@@ -25,7 +25,10 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util"
 )
 
-var _ MetricsProvider = &volumeMetricsDu{}
+type VolumeMetricsProvider interface {
+	GetMetrics() (*Metrics, error)
+	GetVolumeName() api.UniqueVolumeName
+}
 
 type volumeMetricsDu struct {
 	path       string
@@ -34,7 +37,7 @@ type volumeMetricsDu struct {
 }
 
 // NewMetricsDu creates a new metricsDu with the Volume path.
-func NewVolumeMetricsDu(path string, volumeName api.UniqueVolumeName, capacity *Quantity) MetricsProvider {
+func NewVolumeMetricsDu(path string, volumeName api.UniqueVolumeName, capacity *Quantity) VolumeMetricsProvider {
 	return &volumeMetricsDu{path:       path,
 				volumeName: volumeName,
 				capacity:   capacity}
@@ -60,6 +63,10 @@ func (vmd *volumeMetricsDu) GetMetrics() (*Metrics, error) {
 	}
 
 	return metrics, nil
+}
+
+func (vmd *volumeMetricsDu) GetVolumeName() api.UniqueVolumeName {
+	return vmd.volumeName
 }
 
 // runDu executes the "du" command and writes the results to metrics.Used
