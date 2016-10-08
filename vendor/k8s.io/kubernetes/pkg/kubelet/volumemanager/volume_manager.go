@@ -112,6 +112,8 @@ type VolumeManager interface {
 	// pod.Spec.Volumes[x].Name). It returns an empty VolumeMap if pod has no
 	// volumes.
 	GetMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap
+	
+	GetMountedVolumesMetricsForPod(podName types.UniquePodName) map[string]*Metrics
 
 	// GetExtraSupplementalGroupsForPod returns a list of the extra
 	// supplemental groups for the Pod. These extra supplemental groups come
@@ -264,14 +266,16 @@ func (vm *volumeManager) GetMountedVolumesForPod(
 	return podVolumes
 }
 
-func (vm *volumeManager) GetMountedVolumesMetricsForPod(
-	podName types.UniquePodName) map[string]*Metrics {
+func (vm *volumeManager) GetMountedVolumesMetricsForPod(podName types.UniquePodName) map[string]*Metrics {
 	podVolumesMetrics := make(map[string]*Metrics)
-	podVolumeNames := make([]api.UniqueVolumeName)
-	for _, mountedVolume := range vm.actualStateOfWorld.GetMountedVolumesForPod(podName) {
-		podVolumeNames[mountedVolume.OuterVolumeSpecName] = container.VolumeInfo{Mounter: mountedVolume.Mounter}
+	for _, mountedVolumeName := range vm.actualStateOfWorld.GetMountedVolumeNamesForPod(podName) {
+		volumeMetrics := vm.volumesMetricsOfWorld.GetVolumeMetricsData(mountedVolume)
+		if volumeMetrics == nil {
+			volumeMetrics = &Metrics{}
+		}
+		podVolumesMetrics[mountedVolumeName] = volumeMetrics
 	}
-	return podVolumes
+	return podVolumesMetrics
 }
 
 func (vm *volumeManager) GetExtraSupplementalGroupsForPod(pod *api.Pod) []int64 {
