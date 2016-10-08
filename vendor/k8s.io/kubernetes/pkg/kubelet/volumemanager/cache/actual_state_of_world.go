@@ -119,7 +119,7 @@ type ActualStateOfWorld interface {
 	// actual state of the world.
 	GetMountedVolumes() []MountedVolume
 
-	GetVolumeMountedPoints() map[string]VolumeMountedPoint
+	GetMountedVolumeMetricsProviders() map[string]MetricsProvider
 
 	// GetMountedVolumesForPod generates and returns a list of volumes that are
 	// successfully attached and mounted for the specified pod based on the
@@ -148,12 +148,6 @@ type ActualStateOfWorld interface {
 // MountedVolume represents a volume that has successfully been mounted to a pod.
 type MountedVolume struct {
 	operationexecutor.MountedVolume
-}
-
-type VolumeMountedPoint struct {
-	MountedPoint string
-	VolumeName   api.UniqueVolumeName
-	Capacity     *Quantity
 }
 
 // AttachedVolume represents a volume that is attached to a node.
@@ -522,21 +516,18 @@ func (asw *actualStateOfWorld) VolumeExists(
 	return volumeExists
 }
 
-func (asw *actualStateOfWorld) GetVolumeMountedPoints() map[string]VolumeMountedPoint {
+func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]MetricsProvider {
 	asw.RLock()
 	defer asw.RUnlock()
-	volumeMountedPoints := make(map[string]VolumeMountedPoint)
+	volumeMetricsProvider := make(map[string]MetricsProvider)
 	for _, volumeObj := range asw.attachedVolumes {
 		for _, podObj := range volumeObj.mountedPods {
-			mountedPoint = podObj.mounter.GetPath()
-			volumeMountedPoints[mountedPoint] = VolumeMountedPoint{
-				MountedPoint: mountedPoint,
-				VolumeName:   attachedVolume.volumeName,
-				Capacity:     volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage]}
+			path = podObj.mounter.GetPath()
+			volumeMetricsProvider[path] = NewVolumeMetricsDu(path, attachedVolume.volumeName, volumeObj.Spec.PersistentVolume.PersistentVolumeSpec.Capacity[ResourceStorage])
 		}
 	}
 
-	return volumeMountedPoints
+	return volumeMetricsProvider
 }
 
 func (asw *actualStateOfWorld) GetMountedVolumes() []MountedVolume {
