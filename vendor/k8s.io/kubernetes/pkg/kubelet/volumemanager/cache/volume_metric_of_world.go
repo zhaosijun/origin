@@ -44,7 +44,7 @@ import (
 // contains kubelet volume manager specific state.
 type VolumesMetricsOfWorld interface {
 	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
-	SetVolumeMetrics(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
+	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
 	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
 	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error)
 }
@@ -82,7 +82,7 @@ func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.Uniqu
 	return nil
 }
 
-func (vmw *volumesMetricsOfWorld) SetVolumeMetrics(volumeName api.UniqueVolumeName, 
+func (vmw *volumesMetricsOfWorld) SetVolumeMetricsData(volumeName api.UniqueVolumeName, 
 						   volumeMetrics *Metrics,
 						   isMeasuringStatus bool,
 						   cachePeriod *time.Duration,
