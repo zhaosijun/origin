@@ -28,18 +28,21 @@ import (
 type VolumeMetricsProvider interface {
 	GetMetrics() (*Metrics, error)
 	GetVolumeName() api.UniqueVolumeName
+	GetPodName() types.UniquePodName
 }
 
 type volumeMetricsDu struct {
 	path       string
 	volumeName api.UniqueVolumeName
+	podName    types.UniquePodName
 	capacity   *Quantity
 }
 
 // NewMetricsDu creates a new metricsDu with the Volume path.
-func NewVolumeMetricsDu(path string, volumeName api.UniqueVolumeName, capacity *Quantity) VolumeMetricsProvider {
+func NewVolumeMetricsDu(path string, volumeName api.UniqueVolumeName, podName types.UniquePodName, capacity *Quantity) VolumeMetricsProvider {
 	return &volumeMetricsDu{path:       path,
 				volumeName: volumeName,
+				podName:    podName
 				capacity:   capacity}
 }
 
@@ -67,6 +70,10 @@ func (vmd *volumeMetricsDu) GetMetrics() (*Metrics, error) {
 
 func (vmd *volumeMetricsDu) GetVolumeName() api.UniqueVolumeName {
 	return vmd.volumeName
+}
+
+func (vmd *volumeMetricsDu) GetPodName() types.UniquePodName {
+	return vmd.podName
 }
 
 // runDu executes the "du" command and writes the results to metrics.Used
