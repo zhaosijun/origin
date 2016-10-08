@@ -18,114 +18,66 @@ keep track of attached volumes and the pods that mounted them.
 package cache
 
 import (
+	"errors"
 	"fmt"
-	"sync"
 
-	"github.com/golang/glog"
-
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
-	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
-	"k8s.io/kubernetes/pkg/volume/util/volumehelper"
+	"k8s.io/kubernetes/pkg/api/resource"
+	"k8s.io/kubernetes/pkg/volume/util"
 )
 
-// ActualStateOfWorld defines a set of thread-safe operations for the kubelet
-// volume manager's actual state of the world cache.
-// This cache contains volumes->pods i.e. a set of all volumes attached to this
-// node and the pods that the manager believes have successfully mounted the
-// volume.
-// Note: This is distinct from the ActualStateOfWorld implemented by the
-// attach/detach controller. They both keep track of different objects. This
-// contains kubelet volume manager specific state.
-type VolumesMetricsOfWorld interface {
-	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
-	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
-	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
-	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error)
+var _ MetricsProvider = &volumeMetricsDu{}
+
+type volumeMetricsDu struct {
+	path       string
+	volumeName api.UniqueVolumeName
+	capacity   *Quantity
 }
 
-// NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
-func NewVolumeMetricsOfWorld() VolumesMetricsOfWorld {
-	return &volumeMetricsOfWorld{
-		volumeMountedMetricsCache: make(map[api.UniqueVolumeName]*volumeMetricsData),
+// NewMetricsDu creates a new metricsDu with the Volume path.
+func NewVolumeMetricsDu(path string, volumeName api.UniqueVolumeName, capacity *Quantity) MetricsProvider {
+	return &volumeMetricsDu{path:       path,
+				volumeName: volumeName,
+				capacity:   capacity}
+}
+
+// GetMetrics calculates the volume usage and device free space by executing "du"
+// and gathering filesystem info for the Volume path.
+// See MetricsProvider.GetMetrics
+func (vmd *volumeMetricsDu) GetMetrics() (*Metrics, error) {
+	metrics := &Metrics{}
+	if vmd.path == "" || vmd.capacity == nil {
+		return metrics, errors.New("no path defined for volume with name %s.", vmd.volumeName)
 	}
-}
 
-type volumeMetricsData struct {
-	metrics           *Metrics
-	isMeasuringStatus bool
-	cachePeriod       *time.Duration
-	metricsTimestamp  *time.Time
-}
-
-type volumesMetricsOfWorld struct {
-	mountedVolumesMetricsCahce map[api.UniqueVolumeName]*volumeMetricsData
-	sync.RWMutex
-}
-
-func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error {
-	vmw.RLock()
-	defer vmw.RUnlock()
-
-	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
-	if !exist {
-		return fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
+	err := vmd.runDu(metrics)
+	if err != nil {
+		return metrics, err
 	}
-	
-	metricsData.isMeasuringStatus = isMeasuringStatus
 
+	err := vmd.caculateVolumeMetrics(metrics)
+	if err != nil {
+		return metrics, err
+	}
+
+	return metrics, nil
+}
+
+// runDu executes the "du" command and writes the results to metrics.Used
+func (vmd *volumeMetricsDu) runDu(metrics *Metrics) error {
+	used, err := util.Du(vmd.path)
+	if err != nil {
+		return err
+	}
+	metrics.Used = used
 	return nil
 }
 
-func (vmw *volumesMetricsOfWorld) SetVolumeMetricsData(volumeName api.UniqueVolumeName, 
-						   volumeMetrics *Metrics,
-						   isMeasuringStatus bool,
-						   cachePeriod *time.Duration,
-						   dataTimestamp *timeTime) {
-	vmw.RLock()
-	defer vmw.RUnlock()
-	metricsData := &volumeMetricsData{
-		metrics:           volumeMetrics,
-		isMeasuringStatus: isMeasuringStatus
-		cacheTime:         cacheTime,     
-		metricsTimeStamp:  dataTimestamp}
-	
-	vmw.mountedVolumesMetricsCahce[volumeName] = metricsData
-}
-
-func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueVolumeName) {
-	vmw.RLock()
-	defer vmw.RUnlock()
-
-	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
-	if !exist {
-		glog.V(2).Infof("no metrics of volume with name %s exist in cache", volumeName)
-		return
+func (vmd *volumeMetricsDu) caculateVolumeMetrics(metrics *Metrics) error {
+	if metrics == nil || metrics.Used == nil {
+		return fmt.Errorf("Fail to caculete metrics of volume with name %s due to unknow used of metrics.", vmd.volumeName)
 	}
+	metrics.Capacity = vmd.Capacity
+	metrics.Availabel = resource.NewQuantity(uint64(vmd.capacity.Value()) - uint64(metrics.Used.Value()), resource.BinarySI)
 
-	if metricsData.isMeasuringStatus {
-		glog.V(2).Infof("du is running on volume with name %s", volumeName)
-		return
-	}
-
-	delete(vmw.volumesMountedMetricsCahce, volumeName)
-}
-//GetVolumeMetricsData return the metrics, isMeasuringStatus, status that whether the metrics is expired and error 
-func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error) {
-	vmw.RLock()
-	defer vmw.RUnlock()
-	isMetricsExpired := false
-	
-	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
-	if !exist {
-		return nil, false, isMetricsExpired, fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
-	}
-	
-	if metricsData.metricsTimestamp.Add(metricsData.cachePeriod).Before(time.Now()) {
-		isMetricsExpired = true
-	}
-	
-	return metricsData.metrics, metricsData.isMeasuringStatus, isMetricsExpired, nil
+	return nil
 }
