@@ -46,7 +46,7 @@ type VolumesMetricsOfWorld interface {
 	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
 	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
 	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
-	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error)
+	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, bool)
 }
 
 // NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
