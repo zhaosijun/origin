@@ -43,86 +43,92 @@ import (
 // attach/detach controller. They both keep track of different objects. This
 // contains kubelet volume manager specific state.
 type VolumesMetricsOfWorld interface {
-	GetVolumeMetrics(volumeName api.UniqueVolumeName) (*Metrics, error)
+	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
+	SetVolumeMetrics(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
+	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
+	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error)
 }
-
-type MeasureStage int
-
-const (
-	DuRuning = iota
-	DuComplete
-)
 
 // NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
 func NewVolumeMetricsOfWorld() VolumesMetricsOfWorld {
 	return &volumeMetricsOfWorld{
-		volumeMountedMetricsCache: make(map[api.UniqueVolumeName]*Metrics),
+		volumeMountedMetricsCache: make(map[api.UniqueVolumeName]*volumeMetricsData),
 	}
 }
 
-type VolumeMetricsData struct {
-	metrics          *Metrics
-	measureStage     MeasureStage
-	metricsTimestamp *time.Time
+type volumeMetricsData struct {
+	metrics           *Metrics
+	isMeasuringStatus bool
+	cachePeriod       *time.Duration
+	metricsTimestamp  *time.Time
 }
 
 type volumesMetricsOfWorld struct {
-	volumesMountedMetricsCahce map[api.UniqueVolumeName]*VolumeMetricsData
+	mountedVolumesMetricsCahce map[api.UniqueVolumeName]*volumeMetricsData
 	sync.RWMutex
 }
 
-func NewVolumeMetricsData(metrics *Metrics,
-	measureStage MeasureStage,
-	metricsTimestamp *time.Time) {
-	return &VolumeMetricsData{
-		metrics:          metrics,
-		measureStage:     measureStage,
-		metricsTimeStamp: metricsTimestamp}
-}
-
-func (vmw *volumesMetricsOfWorld) SetVolumeMeasureStage(volumeName api.UniqueVolumeName, measureStage MeasureStage) {
+func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error {
 	vmw.RLock()
 	defer vmw.RUnlock()
 
-	volumeMetrics, exist := vmw.volumesMountedMetricsCahce[volumeName]
+	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
+		return fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
 	}
-	volumeMetrics.measureStage = measureStage
+	
+	metricsData.isMeasuringStatus = isMeasuringStatus
+
+	return nil
 }
 
-func (vmw *volumesMetricsOfWorld) SetVolumeMetrics(volumeName api.UniqueVolumeName, volumeMetrics *VolumeMetricsData) {
+func (vmw *volumesMetricsOfWorld) SetVolumeMetrics(volumeName api.UniqueVolumeName, 
+						   volumeMetrics *Metrics,
+						   isMeasuringStatus bool,
+						   cachePeriod *time.Duration,
+						   dataTimestamp *timeTime) {
+	vmw.RLock()
+	defer vmw.RUnlock()
+	metricsData := &volumeMetricsData{
+		metrics:           volumeMetrics,
+		isMeasuringStatus: isMeasuringStatus
+		cacheTime:         cacheTime,     
+		metricsTimeStamp:  dataTimestamp}
+	
+	vmw.mountedVolumesMetricsCahce[volumeName] = metricsData
+}
+
+func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueVolumeName) {
 	vmw.RLock()
 	defer vmw.RUnlock()
 
-	vmw.volumesMountedMetricsCahce[volumeName] = volumeMetrics
-}
-
-func (vmw *volumesMetricsOfWorld) DeleteVolumeMetrics(volumeName api.UniqueVolumeName) {
-	vmw.RLock()
-	defer vmw.RUnlock()
-
-	volumeMetrics, exist := vmw.volumesMountedMetricsCahce[volumeName]
+	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
 		glog.V(2).Infof("no metrics of volume with name %s exist in cache", volumeName)
 		return
 	}
 
-	if volumeMetrics.stageMeasure == DuRunning {
+	if metricsData.isMeasuringStatus {
 		glog.V(2).Infof("du is running on volume with name %s", volumeName)
 		return
 	}
 
 	delete(vmw.volumesMountedMetricsCahce, volumeName)
 }
-
-func (vmw *volumesMetricsOfWorld) GetVolumeMetrics(volumeName api.UniqueVolumeName) (*Metrics, error) {
+//GetVolumeMetricsData return the metrics, isMeasuringStatus, status that whether the metrics is expired and error 
+func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, error) {
 	vmw.RLock()
 	defer vmw.RUnlock()
-
-	volumeMetrics, exist := vmw.volumesMountedMetricsCahce[volumeName]
+	isMetricsExpired := false
+	
+	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
+		return nil, false, isMetricsExpired, fmt.Errorf("no metrics of volume with name %s exist in cache", volumeName)
 	}
-	return volumeMetrics.metrics, nil
+	
+	if metricsData.metricsTimestamp.Add(metricsData.cachePeriod).Before(time.Now()) {
+		isMetricsExpired = true
+	}
+	
+	return metricsData.metrics, metricsData.isMeasuringStatus, isMetricsExpired, nil
 }
