@@ -44,7 +44,7 @@ import (
 // contains kubelet volume manager specific state.
 type VolumesMetricsOfWorld interface {
 	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
-	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cachePeriod *time.Duration, dataTimestamp *timeTime)
+	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cacheDuration *time.Duration, dataTimestamp *timeTime)
 	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
 	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool, bool)
 }
@@ -59,7 +59,7 @@ func NewVolumeMetricsOfWorld() VolumesMetricsOfWorld {
 type volumeMetricsData struct {
 	metrics           *Metrics
 	isMeasuringStatus bool
-	cachePeriod       *time.Duration
+	cacheDuration     *time.Duration
 	metricsTimestamp  *time.Time
 }
 
@@ -85,14 +85,14 @@ func (vmw *volumesMetricsOfWorld) MarkVolumeMeasuringStatus(volumeName api.Uniqu
 func (vmw *volumesMetricsOfWorld) SetVolumeMetricsData(volumeName api.UniqueVolumeName, 
 						   volumeMetrics *Metrics,
 						   isMeasuringStatus bool,
-						   cachePeriod *time.Duration,
+						   cacheDuration *time.Duration,
 						   dataTimestamp *timeTime) {
 	vmw.RLock()
 	defer vmw.RUnlock()
 	metricsData := &volumeMetricsData{
 		metrics:           volumeMetrics,
 		isMeasuringStatus: isMeasuringStatus
-		cacheTime:         cacheTime,     
+		cacheDuration:     cacheDuration,     
 		metricsTimeStamp:  dataTimestamp}
 	
 	vmw.mountedVolumesMetricsCahce[volumeName] = metricsData
@@ -126,7 +126,7 @@ func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolu
 		return nil, false, isMetricsExpired, exist
 	}
 	
-	if metricsData.metricsTimestamp.Add(metricsData.cachePeriod).Before(time.Now()) {
+	if metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now()) {
 		isMetricsExpired = true
 	}
 	
