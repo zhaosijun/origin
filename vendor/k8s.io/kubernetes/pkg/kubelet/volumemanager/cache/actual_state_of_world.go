@@ -123,7 +123,7 @@ type ActualStateOfWorld interface {
 	// metrics providers of all volumes in the actual world.
 	// The key in the map is the path to which the volume should be mounted for the
 	// pod.
-	GetMountedVolumeMetricsProviders() map[string]MetricsProvider
+	GetMountedVolumeMetricsProviders() map[string]VolumeMetricsProvider
 	
 	// GetMountedVolumeNamesForPod returns a map containing the 
 	// OuterVolumeSpecName of the volume as referenced directly in the pod.
@@ -525,10 +525,10 @@ func (asw *actualStateOfWorld) VolumeExists(
 	return volumeExists
 }
 
-func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]*VolumeMetricsProvider {
+func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]VolumeMetricsProvider {
 	asw.RLock()
 	defer asw.RUnlock()
-	volumeMetricsProviders := make(map[string]*VolumeMetricsProvider )
+	volumeMetricsProviders := make(map[string]VolumeMetricsProvider )
 	for _, volumeObj := range asw.attachedVolumes {
 		for _, podObj := range volumeObj.mountedPods {
 			path = podObj.mounter.GetPath()
