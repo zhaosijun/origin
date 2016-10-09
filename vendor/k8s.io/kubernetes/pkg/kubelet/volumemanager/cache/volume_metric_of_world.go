@@ -124,7 +124,7 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 	delete(vmw.volumesMountedMetricsCahce, volumeName)
 }
 
-func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool) {
+func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool) {
 	vmw.RLock()
 	defer vmw.RUnlock()
 	measureRequired := true
