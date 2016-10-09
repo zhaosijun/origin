@@ -121,7 +121,7 @@ type ActualStateOfWorld interface {
 
 	GetMountedVolumeMetricsProviders() map[string]MetricsProvider
 	
-	GetMountedVolumeNamesForPod(podName volumetypes.UniquePodName) []api.UniqueVolumeName
+	GetMountedVolumeNamesForPod(podName volumetypes.UniquePodName) map[api.UniqueVolumeName]string
 
 	// GetMountedVolumesForPod generates and returns a list of volumes that are
 	// successfully attached and mounted for the specified pod based on the
@@ -534,14 +534,14 @@ func (asw *actualStateOfWorld) GetMountedVolumeMetricsProviders() map[string]*Vo
 	return volumeMetricsProviders
 }
 
-func (asw *actualStateOfWorld) GetMountedVolumeNamesForPod(podName volumetypes.UniquePodName) []api.UniqueVolumeName {
+func (asw *actualStateOfWorld) GetMountedVolumeNamesForPod(podName volumetypes.UniquePodName) map[api.UniqueVolumeName]string {
 	asw.RLock()
 	defer asw.RUnlock()
-	mountedVolumeNames := make([]MountedVolume, 0 /* len */, len(asw.attachedVolumes) /* cap */)
+	mountedVolumeNames := make(map[api.UniqueVolumeName]string)
 	for _, volumeObj := range asw.attachedVolumes {
 		for mountedPodName, podObj := range volumeObj.mountedPods {
 			if mountedPodName == podName {
-				mountedVolumeNames = append(mountedVolumeNames, volumeObj.volumaName))
+				mountedVolumeNames[volumeObj.volumaName] = podObj.outerVolumeSpecName
 			}
 		}
 	}
