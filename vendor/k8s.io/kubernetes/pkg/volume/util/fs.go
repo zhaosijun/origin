@@ -62,3 +62,42 @@ func Du(path string) (*resource.Quantity, error) {
 	used.Format = resource.BinarySI
 	return &used, nil
 }
+
+func DuWithCheckingTimeout(path string, timeout *time.Duration) (*resource.Quantity, error) {
+	// Uses the same niceness level as cadvisor.fs does when running du
+	// Uses -B 1 to always scale to a blocksize of 1 byte
+	cmd := exec.Command("nice", "-n", "19", "du", "-s", "-B", "1", path)
+	stdoutp, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, fmt.Errorf("failed to setup stdout for cmd %v - %v", cmd.Args, err)
+	}
+	stderrp, err := cmd.StderrPipe()
+	if err != nil {
+		return 0, fmt.Errorf("failed to setup stderr for cmd %v - %v", cmd.Args, err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return 0, fmt.Errorf("failed to exec du - %v", err)
+	}
+	stdoutb, souterr := ioutil.ReadAll(stdoutp)
+	stderrb, _ := ioutil.ReadAll(stderrp)
+	timer := time.AfterFunc(timeout, func() {
+		glog.Infof("killing cmd %v due to timeout(%s)", cmd.Args, timeout.String())
+		cmd.Process.Kill()
+	})
+	err = cmd.Wait()
+	timer.Stop()
+	if err != nil {
+		return 0, fmt.Errorf("du command failed on %s with output stdout: %s, stderr: %s - %v", dir, string(stdoutb), string(stderrb), err)
+	}
+	stdout := string(stdoutb)
+	if souterr != nil {
+		glog.Errorf("failed to read from stdout for cmd %v - %v", cmd.Args, souterr)
+	}
+	used, err := resource.ParseQuantity(strings.Fields(stdout)[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse 'du' output %s due to error %v", stdout, err)
+	}
+	used.Format = resource.BinarySI
+	return &used, nil
+}
