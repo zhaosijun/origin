@@ -119,8 +119,15 @@ type ActualStateOfWorld interface {
 	// actual state of the world.
 	GetMountedVolumes() []MountedVolume
 
+	// GetMountedVolumeMetricsProviders generates and returns a map containing the 
+	// metrics providers of all volumes in the actual world.
+	// The key in the map is the path to which the volume should be mounted for the
+	// pod.
 	GetMountedVolumeMetricsProviders() map[string]MetricsProvider
 	
+	// GetMountedVolumeNamesForPod returns a map containing the 
+	// OuterVolumeSpecName of the volume as referenced directly in the pod.
+	// The key in the map is the unique volume name.
 	GetMountedVolumeNamesForPod(podName volumetypes.UniquePodName) map[api.UniqueVolumeName]string
 
 	// GetMountedVolumesForPod generates and returns a list of volumes that are
