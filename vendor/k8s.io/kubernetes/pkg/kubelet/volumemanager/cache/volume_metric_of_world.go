@@ -34,22 +34,35 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util/volumehelper"
 )
 
-// ActualStateOfWorld defines a set of thread-safe operations for the kubelet
-// volume manager's actual state of the world cache.
-// This cache contains volumes->pods i.e. a set of all volumes attached to this
-// node and the pods that the manager believes have successfully mounted the
-// volume.
-// Note: This is distinct from the ActualStateOfWorld implemented by the
-// attach/detach controller. They both keep track of different objects. This
-// contains kubelet volume manager specific state.
+// VolumesMetricsOfWorld defines a set of thread-safe operations for the kubelet
+// volume manager's volumes metrics of the world cache.
+// This cache contains volumes->metrics data.
 type VolumesMetricsOfWorld interface {
-	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, isMeasuringStatus bool) error
-	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, isMeasuringStatus bool, cacheDuration *time.Duration, dataTimestamp *timeTime)
+	// MarkVolumeMeasuringStatus marks the volume as being measured or not. 
+	// The volume may be mounted on multiple paths for multiple pods. 
+	// It is neccery to avoid excute 'du' on all paths that mountes the same volume. 
+	// When mark it as true indicates the volume is being measuring.
+	// if the volume does not exist in the cache , an error is returned.
+	MarkVolumeMeasuringStatus(volumeName api.UniqueVolumeName, measuringIsDoing bool) error
+	
+	// SetVolumeMetricsData sets the volume metrics data value for the given volume. 
+	// volumeMetrics is the metrics of the volume.
+	// measuringIsDoing indicates whether the volume is being measured. 
+	// cacheDuration is the amount of time the metrics is effective in the cache.
+	// dataTimestamp is the time of last measure of the metrics.
+	SetVolumeMetricsData(volumeName api.UniqueVolumeName, volumeMetrics *Metrics, measuringIsDoing bool, cacheDuration *time.Duration, dataTimestamp *timeTime)
+	
+	// DeleteVolumeMetricsData removes the given volume metrics from the 
+	// cache when the volume has not been in the actual world.
 	DeleteVolumeMetricsData(volumeName api.UniqueVolumeName)
-	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool)
+	
+	// GetVolumeMetricsData return the metrics, whether volume needs to be measured. 
+	// If the metrics data is expired and the volume is not being measured,
+	// return the seconde result with true indicates volume needs to be measured.
+	GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool)
 }
 
-// NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
+// NewVolumeMetricsOfWorld returns a new instance of VolumesMetricsOfWorld.
 func NewVolumeMetricsOfWorld() VolumesMetricsOfWorld {
 	return &volumeMetricsOfWorld{
 		volumeMountedMetricsCache: make(map[api.UniqueVolumeName]*volumeMetricsData),
@@ -108,14 +121,9 @@ func (vmw *volumesMetricsOfWorld) DeleteVolumeMetricsData(volumeName api.UniqueV
 		return
 	}
 
-	if metricsData.measuringIsDoing {
-		glog.V(2).Infof("du is running on volume with name %s", volumeName)
-		return
-	}
-
 	delete(vmw.volumesMountedMetricsCahce, volumeName)
 }
-//GetVolumeMetricsData return the metrics, whether need to measure volume and whether volume metrics exist
+
 func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolumeName) (*Metrics, bool, bool) {
 	vmw.RLock()
 	defer vmw.RUnlock()
@@ -123,7 +131,7 @@ func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolu
 	
 	metricsData, exist := vmw.mountedVolumesMetricsCahce[volumeName]
 	if !exist {
-		return nil, measureRequired, exist
+		return nil, measureRequired
 	}
 	
 	metricsIsExpired := metricsData.metricsTimestamp.Add(metricsData.cacheDuration).Before(time.Now())
@@ -131,5 +139,5 @@ func (vmw *volumesMetricsOfWorld) GetVolumeMetricsData(volumeName api.UniqueVolu
 		measureRequired = false
 	}
 	
-	return metricsData.metrics, measureRequired, exist
+	return metricsData.metrics, measureRequired
 }
