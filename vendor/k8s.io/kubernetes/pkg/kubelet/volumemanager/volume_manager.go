@@ -87,9 +87,12 @@ const (
 	// can wait to start reconciler
 	reconcilerStartGracePeriod time.Duration = 60 * time.Second
 	
-	volumeMetricsCachePeriod time.Duration = 1 * time.Second
+	//volumeMetricsCachePeriod is the amount of time the volume metrics is effective in cache
+	volumeMetricsCachePeriod time.Duration = 1 * time.Minute
 	
-	volumeMetricsProviderLoopSleepPeriod = 1 * time.Second
+	// volumeMetricsProviderLoopSleepPeriod is the amount of time the metrics provider loop waits
+	// between successive executions
+	volumeMetricsProviderLoopSleepPeriod time.Duration = 30 * time.Second
 )
 
 // VolumeManager runs a set of asynchronous loops that figure out which volumes
@@ -113,6 +116,11 @@ type VolumeManager interface {
 	// volumes.
 	GetMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap
 	
+	// GetMountedVolumesMetricsForPod returns a map containing the metrics of 
+	// all volumes referenced by the specified pod that are successfully attached
+	// and mounted. The key in the map is the OuterVolumeSpecName (i.e.
+	// pod.Spec.Volumes[x].Name). It returns an empty map if pod has no
+	// volumes.
 	GetMountedVolumesMetricsForPod(podName types.UniquePodName) map[string]*Metrics
 
 	// GetExtraSupplementalGroupsForPod returns a list of the extra
@@ -223,6 +231,9 @@ type volumeManager struct {
 	// detach, mount, and unmount actions triggered by the reconciler.
 	actualStateOfWorld cache.ActualStateOfWorld
 	
+	// volumesMetricsOfWorld is a data structure containing the mounted volumes 
+	// metrics of the world according to the manager.
+	// The data structure is updated when it is expired.
 	volumesMetricsOfWorld cache.VolumesMetricsOfWorld
 
 	// operationExecutor is used to start asynchronous attach, detach, mount,
@@ -238,6 +249,8 @@ type volumeManager struct {
 	// populate the desiredStateOfWorld using the kubelet PodManager.
 	desiredStateOfWorldPopulator populator.DesiredStateOfWorldPopulator
 	
+	// metricsProvider runs an asynchronous periodic loop to
+	// update the volumesMetricsOfWorld by running 'du'.
 	metricsProvider provider.VolumesMetricsOfWorldProvider
 }
 
@@ -266,6 +279,7 @@ func (vm *volumeManager) GetMountedVolumesForPod(
 	return podVolumes
 }
 
+//GetMountedVolumesMetricsForPod
 func (vm *volumeManager) GetMountedVolumesMetricsForPod(podName types.UniquePodName) map[string]*Metrics {
 	podVolumesMetrics := make(map[string]*Metrics)
 	for volumeName, outerVolumeSpecName := range vm.actualStateOfWorld.GetMountedVolumeNamesForPod(podName) {
