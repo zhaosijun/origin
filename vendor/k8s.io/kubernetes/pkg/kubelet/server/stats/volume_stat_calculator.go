@@ -86,21 +86,21 @@ func (s *volumeStatCalculator) GetLatest() (PodVolumeStats, bool) {
 
 // calcAndStoreStats calculates PodVolumeStats for a given pod and writes the result to the s.latest cache.
 func (s *volumeStatCalculator) calcAndStoreStats() {
-	// Find all Volumes for the Pod
-	volumes, found := s.statsProvider.GetVolumesMetricsForPod(s.pod.UID)
+	// Get all Volumes Metrics for the Pod from cache
+	volumesMetrics, found := s.statsProvider.GetVolumesMetricsForPod(s.pod.UID)
 	if !found {
 		return
 	}
 
-	// Call GetMetrics on each Volume and copy the result to a new VolumeStats.FsStats
-	stats := make([]stats.VolumeStats, 0, len(volumes))
-	for name, metric := range volumes {
+	// Copy the result to a new VolumeStats.FsStats
+	stats := make([]stats.VolumeStats, 0, len(volumesMetrics))
+	for outerVolumeSpecName, metric := range volumesMetrics {
 		
 		if metric == nil {
-			//volume metrics has not been provided
+			//Volume Metrics has not been in cache
 			continue
 		}
-		stats = append(stats, s.parsePodVolumeStats(name, metric))
+		stats = append(stats, s.parsePodVolumeStats(outerVolumeSpecName, metric))
 	}
 
 	// Store the new stats
