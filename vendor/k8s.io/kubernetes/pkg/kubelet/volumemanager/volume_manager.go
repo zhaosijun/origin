@@ -268,9 +268,9 @@ func (vm *volumeManager) GetMountedVolumesForPod(
 
 func (vm *volumeManager) GetMountedVolumesMetricsForPod(podName types.UniquePodName) map[string]*Metrics {
 	podVolumesMetrics := make(map[string]*Metrics)
-	for _, mountedVolumeName := range vm.actualStateOfWorld.GetMountedVolumeNamesForPod(podName) {
-		volumeMetrics := vm.volumesMetricsOfWorld.GetVolumeMetricsData(mountedVolume)
-		podVolumesMetrics[mountedVolumeName] = volumeMetrics
+	for volumeName, outerVolumeSpecName := range vm.actualStateOfWorld.GetMountedVolumeNamesForPod(podName) {
+		volumeMetrics := vm.volumesMetricsOfWorld.GetVolumeMetricsData(volumeName)
+		podVolumesMetrics[outerVolumeSpecName] = volumeMetrics
 	}
 	return podVolumesMetrics
 }
